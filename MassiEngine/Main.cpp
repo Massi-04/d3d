@@ -1,28 +1,7 @@
 #include <Windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
-
-// Roba finestra win32
-const int WIDTH = 1280;
-const int HEIGHT = 720;
-const bool WINDOWED = true;
-const char* TITLE = "MassiWnd";
-const char* WND_CLASS_NAME = "MassiWndClass";
-HWND WndHandle = nullptr;
-
-// roba d3d11
-IDXGISwapChain* swapChain = nullptr;
-ID3D11Device* device = nullptr;
-ID3D11DeviceContext* context = nullptr;
-ID3D11RenderTargetView* renderTargetView = nullptr;
-
-// roba d3d11 buffer e shader ecc...
-ID3D11Buffer* vertexBuffer = nullptr;
-ID3D11InputLayout* vertexLayout = nullptr;
-ID3D11VertexShader* vertexShader = nullptr;
-ID3D11PixelShader* pixelShader = nullptr;
-ID3D10Blob* vertexShaderSrc = nullptr;
-ID3D10Blob* pixelShaderSrc = nullptr;
+#include <directxmath.h>
 
 struct Vec3
 {
@@ -50,6 +29,56 @@ struct Vertex
 
     Vec3 Position;
     Vec3 Color;
+};
+
+// Roba finestra win32
+const int WIDTH = 1280;
+const int HEIGHT = 720;
+const bool WINDOWED = true;
+const char* TITLE = "MassiWnd";
+const char* WND_CLASS_NAME = "MassiWndClass";
+HWND WndHandle = nullptr;
+
+// roba d3d11
+IDXGISwapChain* swapChain = nullptr;
+ID3D11Device* device = nullptr;
+ID3D11DeviceContext* context = nullptr;
+ID3D11RenderTargetView* renderTargetView = nullptr;
+
+// roba d3d11 buffer e shader ecc...
+ID3D11Buffer* vertexBuffer = nullptr;
+ID3D11Buffer* indexBuffer = nullptr;
+ID3D11InputLayout* vertexLayout = nullptr;
+ID3D11VertexShader* vertexShader = nullptr;
+ID3D11PixelShader* pixelShader = nullptr;
+ID3D10Blob* vertexShaderSrc = nullptr;
+ID3D10Blob* pixelShaderSrc = nullptr;
+
+// roba per il 3d
+ID3D11DepthStencilView* depthStencilView = nullptr;
+ID3D11Texture2D* depthStencilBuffer = nullptr;
+
+
+// constant buffer
+ID3D11Buffer* constBuffer = nullptr;
+
+// camera
+DirectX::XMVECTOR camPosition;
+DirectX::XMVECTOR camTarget;
+DirectX::XMVECTOR camUp;
+
+DirectX::XMMATRIX WVP;
+DirectX::XMMATRIX World;
+DirectX::XMMATRIX camView;
+DirectX::XMMATRIX camProjection;
+
+DirectX::XMMATRIX location;
+DirectX::XMMATRIX rotation;
+DirectX::XMMATRIX scale;
+
+struct ConstBuffer
+{
+    DirectX::XMMATRIX WVP;
 };
 
 #define MESSAGE_BOX_ERR(Error) MessageBoxA(NULL, Error, "Errore", MB_OK | MB_ICONERROR)
@@ -189,7 +218,25 @@ bool InitD3D(HINSTANCE hInstance)
 
     backBuffer->Release();
 
-    context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+    D3D11_TEXTURE2D_DESC depthStencilDesc;
+    depthStencilDesc.Width = WIDTH;
+    depthStencilDesc.Height = HEIGHT;
+    depthStencilDesc.MipLevels = 1;
+    depthStencilDesc.ArraySize = 1;
+    depthStencilDesc.Format = DXGI_FORMAT::DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStencilDesc.SampleDesc.Count = 1;
+    depthStencilDesc.SampleDesc.Quality = 0;
+    depthStencilDesc.Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT;
+    depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthStencilDesc.CPUAccessFlags = 0;
+    depthStencilDesc.MiscFlags = 0;
+
+    device->CreateTexture2D(&depthStencilDesc, nullptr, &depthStencilBuffer);
+    device->CreateDepthStencilView(depthStencilBuffer, nullptr, &depthStencilView);
+
+    context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
+
+
 
     return true;
 }
@@ -201,12 +248,56 @@ void CleanUp()
     context->Release();
     renderTargetView->Release();
     vertexBuffer->Release();
+    indexBuffer->Release();
     vertexLayout->Release();
     vertexShader->Release();
     pixelShader->Release();
     vertexShaderSrc->Release();
     pixelShaderSrc->Release();
+    depthStencilBuffer->Release();
+    depthStencilView->Release();
 }
+
+Vertex vertexBufferData[] =
+{
+    Vertex({ -1.0f, -1.0f, -1.0f }, { 0.196f, 0.658f, 0.321f }), // verde
+    Vertex({ -1.0f, +1.0f, -1.0f }, { 0.627f, 0.196f, 0.658f }), // viola
+    Vertex({ +1.0f, +1.0f, -1.0f }, { 0.658f, 0.392f, 0.196f }), // marrone
+    Vertex({ +1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f }), // rosso
+    Vertex({ -1.0f, -1.0f, +1.0f }, { 0.196f, 0.658f, 0.321f }), // verde
+    Vertex({ -1.0f, +1.0f, +1.0f }, { 0.627f, 0.196f, 0.658f }), // viola
+    Vertex({ +1.0f, +1.0f, +1.0f }, { 0.658f, 0.392f, 0.196f }), // marrone
+    Vertex({ +1.0f, -1.0f, +1.0f }, { 1.0f, 0.0f, 0.0f }) // rosso
+};
+
+unsigned int indexBufferData[] =
+{
+    // front face
+    0, 1, 2,
+    0, 2, 3,
+
+    // back face
+    4, 6, 5,
+    4, 7, 6,
+
+    // left face
+    4, 5, 1,
+    4, 1, 0,
+
+    // right face
+    3, 2, 6,
+    3, 6, 7,
+
+    // top face
+    1, 5, 6,
+    1, 6, 2,
+
+    // bottom face
+    4, 0, 3,
+    4, 3, 7
+};
+
+ConstBuffer constBufferData;
 
 bool InitScene()
 {   
@@ -239,13 +330,6 @@ bool InitScene()
     context->VSSetShader(vertexShader, nullptr, 0);
     context->PSSetShader(pixelShader, nullptr, 0);
 
-    Vertex vertexBufferData[] =
-    {
-        Vertex({ 0.0f, 0.5f, 0.5f }, { 0.196f, 0.658f, 0.321f }), // verde
-        Vertex({ 0.5f, -0.5f, 0.5f }, { 0.627f, 0.196f, 0.658f }), // viola
-        Vertex({ -0.5f, -0.5f, 0.5f }, { 0.658f, 0.392f, 0.196f }) // marrone
-    };
-
     D3D11_BUFFER_DESC vertexBufferDesc = {};
     vertexBufferDesc.ByteWidth = sizeof(vertexBufferData);
     vertexBufferDesc.Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT;
@@ -255,11 +339,30 @@ bool InitScene()
 
     D3D11_SUBRESOURCE_DATA vertexBufferDataDesc = {};
     vertexBufferDataDesc.pSysMem = vertexBufferData;
+
+    D3D11_BUFFER_DESC indexBufferDesc = {};
+    indexBufferDesc.ByteWidth = sizeof(indexBufferData);
+    indexBufferDesc.Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT;
+    indexBufferDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_INDEX_BUFFER;
+    indexBufferDesc.CPUAccessFlags = 0;
+    indexBufferDesc.MiscFlags = 0;
+
+    D3D11_SUBRESOURCE_DATA indexBufferDataDesc = {};
+    indexBufferDataDesc.pSysMem = indexBufferData;
+
+
     
     res = device->CreateBuffer(&vertexBufferDesc, &vertexBufferDataDesc, &vertexBuffer);
     if (res != S_OK)
     {
-        MESSAGE_BOX_ERR("Impossibile creare il buffer");
+        MESSAGE_BOX_ERR("Impossibile creare il vertex buffer");
+        return false;
+    }
+
+    res = device->CreateBuffer(&indexBufferDesc, &indexBufferDataDesc, &indexBuffer);
+    if (res != S_OK)
+    {
+        MESSAGE_BOX_ERR("Impossibile creare l'index buffer");
         return false;
     }
 
@@ -267,6 +370,7 @@ bool InitScene()
     unsigned int offset = 0; 
 
     context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+    context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT::DXGI_FORMAT_R32_UINT, 0);
     
     D3D11_INPUT_ELEMENT_DESC vertexLayoutDesc[] =
     {
@@ -293,28 +397,64 @@ bool InitScene()
     viewport.TopLeftY = 0;
     viewport.Width = WIDTH;
     viewport.Height = HEIGHT;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
     
     context->RSSetViewports(1, &viewport);
+
+    D3D11_BUFFER_DESC constBufferDesc = {};
+    constBufferDesc.Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT;
+    constBufferDesc.ByteWidth = sizeof(constBufferData);
+    constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    device->CreateBuffer(&constBufferDesc, nullptr, &constBuffer);
+
+    camPosition = DirectX::XMVectorSet(0.0f, 0.0f, -3.5f, 0.0f); // posizione della camera
+    camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f); // posizione dell'oggetto da guardare
+    camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // scegliere con che rollio guardarlo
+    camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);
+
+    camProjection = DirectX::XMMatrixPerspectiveFovLH(1.57f, (float)WIDTH / HEIGHT, 1.0f, 1000.0f);
+
+    World = DirectX::XMMatrixIdentity(); // world è la posizione dell'oggetto nel mondo, Vec3 X, Y, Z
+
+    WVP = World * camView * camProjection;
+
+    constBufferData.WVP = DirectX::XMMatrixTranspose(WVP);
+    context->UpdateSubresource(constBuffer, 0, nullptr, &constBufferData, 0, 0);
+    context->VSSetConstantBuffers(0, 1, &constBuffer);
 
     return true;
 }
 
 float background[4] = { 0.259f, 0.529f, 0.961f, 1.0f };
 
+float rot = 0.0f;
+
 void UpdateScene()
 {
-    /*background[0] += 0.005f;
-    if (background[0] > 1)
-    {
-        background[0] = 0.0f;
-    }*/
+    rot += 5.0f / 60.0f;
+    // update world position of the cube
+    rotation = DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), rot * 3.14159f / 180.0f);
+    location = DirectX::XMMatrixTranslation(0, 0, 0);
+    scale = DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f);
+
+    World = scale * rotation * location;
+
+    // update WVP
+    WVP = World * camView * camProjection;
+    constBufferData.WVP = DirectX::XMMatrixTranspose(WVP);
+    context->UpdateSubresource(constBuffer, 0, nullptr, &constBufferData, 0, 0);
+    context->VSSetConstantBuffers(0, 1, &constBuffer);
 }
 
 void DrawScene()
 {
     context->ClearRenderTargetView(renderTargetView, background);
 
-    context->Draw(3, 0);
+    context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    context->DrawIndexed(sizeof(indexBufferData) / sizeof(unsigned int), 0, 0);
 
     swapChain->Present(1, 0);
 }
