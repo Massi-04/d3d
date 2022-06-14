@@ -18,9 +18,22 @@
     <ClCompile Include="Main.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="stbi.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl" />
     <FxCompile Include="PixelShader.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stbi.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="doom.jpg">
+      <Filter>File di risorse</Filter>
+    </Image>
   </ItemGroup>
 </Project>
