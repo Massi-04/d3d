@@ -58,6 +58,14 @@ ID3D10Blob* pixelShaderSrc = nullptr;
 ID3D11DepthStencilView* depthStencilView = nullptr;
 ID3D11Texture2D* depthStencilBuffer = nullptr;
 
+// sempre d3d
+ID3D11RasterizerState* wireFrame = nullptr;
+
+
+// texture
+ID3D11ShaderResourceView* cubesTexture;
+ID3D11SamplerState* cubesTexSamplerState;
+
 
 // constant buffer
 ID3D11Buffer* constBuffer = nullptr;
@@ -256,6 +264,8 @@ void CleanUp()
     pixelShaderSrc->Release();
     depthStencilBuffer->Release();
     depthStencilView->Release();
+    constBuffer->Release();
+    wireFrame->Release();
 }
 
 Vertex vertexBufferData[] =
@@ -423,6 +433,13 @@ bool InitScene()
     constBufferData.WVP = DirectX::XMMatrixTranspose(WVP);
     context->UpdateSubresource(constBuffer, 0, nullptr, &constBufferData, 0, 0);
     context->VSSetConstantBuffers(0, 1, &constBuffer);
+
+    D3D11_RASTERIZER_DESC wireframeDesc = {};
+    wireframeDesc.FillMode = D3D11_FILL_MODE::D3D11_FILL_WIREFRAME;
+    wireframeDesc.CullMode = D3D11_CULL_MODE::D3D11_CULL_NONE;
+    device->CreateRasterizerState(&wireframeDesc, &wireFrame);
+
+    context->RSSetState(wireFrame);
 
     return true;
 }
