@@ -558,9 +558,9 @@ float rot = 0.0f;
 
 void UpdateScene()
 {
-    rot += 5.0f / 60.0f;
+    rot += 10.0f / 60.0f;
     // update world position of the cube
-    rotation = DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), rot * 3.14159f / 180.0f);
+    rotation = DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), rot * 3.14159f / 180.0f);
     location = DirectX::XMMatrixTranslation(0, 0, 0);
     scale = DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f);
 
